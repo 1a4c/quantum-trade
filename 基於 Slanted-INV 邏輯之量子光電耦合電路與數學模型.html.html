@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Processor Unit - Slanted-INV & Fast FOULETTE / EMV Simulator</title>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: rgba(18, 26, 43, 0.85);
+            --border-color: #1e2d4a;
+            --accent-cyan: #00f3ff;
+            --accent-blue: #0066ff;
+            --accent-purple: #9d00ff;
+            --accent-gold: #ffb700;
+            --text-main: #e0e8f5;
+            --text-dim: #7a8c9e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(0, 243, 255, 0.05) 0%, transparent 80%),
+                linear-gradient(var(--border-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border-color) 1px, transparent 1px);
+            background-size: 100% 100%, 30px 30px, 30px 30px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        h1, h2, h3 {
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h1::before, h2::before {
+            content: '■';
+            font-size: 0.8rem;
+            color: var(--accent-blue);
+        }
+
+        /* Control Panel */
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+
+        .value-display {
+            float: right;
+            color: var(--accent-cyan);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #132238;
+            border-radius: 3px;
+            outline: none;
+            accent-color: var(--accent-cyan);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(45deg, var(--accent-blue), var(--accent-purple));
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 10px;
+            box-shadow: 0 0 15px rgba(0, 102, 255, 0.4);
+        }
+
+        .btn:hover {
+            box-shadow: 0 0 25px rgba(0, 243, 255, 0.8);
+            transform: translateY(-2px);
+        }
+
+        .toggle-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 22px;
+        }
+
+        .switch input { opacity: 0; width: 0; height: 0; }
+
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #1a2638; transition: .4s; border-radius: 22px;
+            border: 1px solid var(--border-color);
+        }
+
+        .slider:before {
+            position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px;
+            background-color: var(--text-dim); transition: .4s; border-radius: 50%;
+        }
+
+        input:checked + .slider { background-color: var(--accent-blue); }
+        input:checked + .slider:before { transform: translateX(22px); background-color: var(--accent-cyan); }
+
+        /* Dashboard Viewports */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .viewport {
+            background: rgba(5, 10, 20, 0.9);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+        }
+
+        .viewport-title {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            background: rgba(0,0,0,0.6);
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            z-index: 10;
+        }
+
+        canvas {
+            background: #000;
+            border-radius: 4px;
+            width: 100%;
+            height: 220px;
+        }
+
+        /* Full Width Output Section */
+        .full-width {
+            grid-column: span 2;
+        }
+
+        /* EMV Monitor Display */
+        .emv-box {
+            background: #040810;
+            border: 1px solid var(--accent-purple);
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Consolas', monospace;
+            position: relative;
+            box-shadow: inset 0 0 15px rgba(157, 0, 255, 0.2);
+        }
+
+        .emv-header {
+            display: flex;
+            justify-content: space-between;
+            color: var(--accent-gold);
+            font-size: 0.8rem;
+            margin-bottom: 10px;
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 5px;
+        }
+
+        .emv-string {
+            color: #00ff66;
+            word-break: break-all;
+            font-size: 0.95rem;
+            letter-spacing: 1px;
+            line-height: 1.4;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .metric-card {
+            background: rgba(255,255,255,0.03);
+            padding: 8px 12px;
+            border-radius: 4px;
+            border-left: 3px solid var(--accent-cyan);
+        }
+
+        .metric-card .label { font-size: 0.7rem; color: var(--text-dim); }
+        .metric-card .val { font-size: 1rem; color: var(--text-main); font-weight: bold; }
+
+        @media (max-width: 900px) {
+            .container { grid-template-columns: 1fr; }
+            .dashboard { grid-template-columns: 1fr; }
+            .full-width { grid-column: span 1; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 控制面板 -->
+    <div class="panel">
+        <h2>系統參數控制</h2>
+        
+        <div class="control-group">
+            <label>90-Lux 光學抽運強度<span id="lux-val" class="value-display">90.0</span></label>
+            <input type="range" id="lux-input" min="0" max="120" value="90" step="0.5">
+        </div>
+
+        <div class="control-group">
+            <label>Slanted Tube 傾斜角 θ<span id="theta-val" class="value-display">45°</span></label>
+            <input type="range" id="theta-input" min="0" max="180" value="45">
+        </div>
+
+        <div class="toggle-container">
+            <label style="margin:0;">Parity Inversion (INV)</label>
+            <label class="switch">
+                <input type="checkbox" id="inv-toggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="toggle-container">
+            <label style="margin:0;">Fast FOULETTE (QFT)</label>
+            <label class="switch">
+                <input type="checkbox" id="qft-toggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <button class="btn" id="btn-positioned">執行 positioned_set()</button>
+        
+        <div class="metrics" style="grid-template-columns: 1fr; margin-top:20px;">
+            <div class="metric-card">
+                <div class="label">態製備保真度 (Fidelity)</div>
+                <div class="val" id="fidelity-display">99.92 %</div>
+            </div>
+            <div class="metric-card" style="border-left-color: var(--accent-purple);">
+                <div class="label">退相干狀態 (Decoherence)</div>
+                <div class="val" id="decoherence-display">STABLE</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 視覺化儀表板 -->
+    <div class="panel dashboard">
+        <!-- 1. Bloch Sphere & Slanted Mapping -->
+        <div class="viewport">
+            <div class="viewport-title">1. Bloch 平面映射 (Slanted-INV)</div>
+            <canvas id="blochCanvas"></canvas>
+        </div>
+
+        <!-- 2. Fast FOULETTE Spectrum -->
+        <div class="viewport">
+            <div class="viewport-title">2. Fast FOULETTE 頻域響應</div>
+            <canvas id="fftCanvas"></canvas>
+        </div>
+
+        <!-- 3. CV2 Plane Tomography -->
+        <div class="viewport full-width">
+            <div class="viewport-title">3. CV2 量子態斷層掃描 (plane_visible)</div>
+            <canvas id="cv2Canvas" style="height: 160px;"></canvas>
+        </div>
+
+        <!-- 4. EMV Mode Output -->
+        <div class="viewport full-width" style="background:transparent; border:none; padding:0;">
+            <div class="emv-box" style="width: 100%;">
+                <div class="emv-header">
+                    <span>EMV Eigen-Mode Verification Protocol</span>
+                    <span>STATUS: ENCRYPTED</span>
+                </div>
+                <div class="emv-string" id="emv-output">
+                    EMV-0x8F92A4B1::MODE[QFT_SATURATED]::PHI_LOGIT[0.9982]::HASH[c9f8a3e...41b]
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 繪圖與控制邏輯
+    const luxInput = document.getElementById('lux-input');
+    const thetaInput = document.getElementById('theta-input');
+    const invToggle = document.getElementById('inv-toggle');
+    const qftToggle = document.getElementById('qft-toggle');
+    const btnPositioned = document.getElementById('btn-positioned');
+
+    const luxVal = document.getElementById('lux-val');
+    const thetaVal = document.getElementById('theta-val');
+    const fidelityDisplay = document.getElementById('fidelity-display');
+    const decoherenceDisplay = document.getElementById('decoherence-display');
+    const emvOutput = document.getElementById('emv-output');
+
+    // Canvas 載入
+    const blochCtx = document.getElementById('blochCanvas').getContext('2d');
+    const fftCtx = document.getElementById('fftCanvas').getContext('2d');
+    const cv2Ctx = document.getElementById('cv2Canvas').getContext('2d');
+
+    let animFrame;
+    let time = 0;
+
+    // phi_logit 機率密度邏輯函數
+    function phiLogit(x) {
+        return 1 / (1 + Math.exp(-x));
+    }
+
+    function resizeCanvas(canvas) {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+    }
+
+    function drawBlochSphere(ctx, theta, inv) {
+        const w = ctx.canvas.width;
+        const h = ctx.canvas.height;
+        const cx = w / 2;
+        const cy = h / 2;
+        const r = Math.min(w, h) * 0.35;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // 畫 Bloch 球體背景網格
+        ctx.strokeStyle = 'rgba(0, 243, 255, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, r, r * 0.3, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 算量子向量 (Slanted 角度計算)
+        let rad = (theta * Math.PI) / 180;
+        if (inv) rad = -rad + Math.PI; // Parity Inversion P = -I 效果
+
+        const vx = cx + r * Math.sin(rad) * Math.cos(time * 0.05);
+        const vy = cy - r * Math.cos(rad);
+
+        // 繪製軌跡
+        ctx.strokeStyle = inv ? 'rgba(157, 0, 255, 0.5)' : 'rgba(0, 102, 255, 0.5)';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(vx, vy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 向量節點
+        ctx.fillStyle = inv ? '#9d00ff' : '#00f3ff';
+        ctx.beginPath();
+        ctx.arc(vx, vy, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.shadowBlur = 10;
+    }
+
+    function drawFFT(ctx, qftEnabled, lux) {
+        const w = ctx.canvas.width;
+        const h = ctx.canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        const bars = 32;
+        const barWidth = w / bars;
+
+        for (let i = 0; i < bars; i++) {
+            let height;
+            if (qftEnabled) {
+                // QFT 開啟：尖銳且集中的本徵頻譜
+                const distanceToCenter = Math.abs(i - bars / 2);
+                height = Math.max(10, (h - 20) * Math.exp(-Math.pow(distanceToCenter / 2, 2)) * (lux / 90));
+                // 加入一點微微顫動
+                height += Math.sin(time + i) * 3;
+            } else {
+                // 未開 QFT：雜訊頻譜
+                height = Math.random() * (h * 0.6) + 10;
+            }
+
+            ctx.fillStyle = qftEnabled ? '#00f3ff' : '#ff3366';
+            ctx.fillRect(i * barWidth, h - height, barWidth - 2, height);
+        }
+    }
+
+    function drawCV2Tomography(ctx, lux, theta, inv) {
+        const w = ctx.canvas.width;
+        const h = ctx.canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        const gridCols = 24;
+        const gridRows = 8;
+        const cellW = w / gridCols;
+        const cellH = h / gridRows;
+
+        for (let r = 0; r < gridRows; r++) {
+            for (let c = 0; c < gridCols; c++) {
+                // 生成二維相干概率場
+                const dist = Math.sqrt(Math.pow(c - gridCols/2, 2) + Math.pow(r - gridRows/2, 2));
+                let prob = Math.sin(dist * 0.5 - time * 0.1) * 0.5 + 0.5;
+                
+                // 套用 logit 飽和影響
+                const luxFactor = lux / 90;
+                prob = phiLogit((prob - 0.5) * 5 * luxFactor);
+
+                if (inv) prob = 1 - prob; // INV 翻轉
+
+                const alpha = prob.toFixed(2);
+                ctx.fillStyle = `rgba(0, 243, 255, ${alpha})`;
+                ctx.fillRect(c * cellW + 1, r * cellH + 1, cellW - 2, cellH - 2);
+            }
+        }
+    }
+
+    function updateMetrics() {
+        const lux = parseFloat(luxInput.value);
+        const theta = parseFloat(thetaInput.value);
+        const inv = invToggle.checked;
+        const qft = qftToggle.checked;
+
+        // 計算態飽和保真度 (90-Lux 達最佳點)
+        const luxDev = Math.abs(lux - 90);
+        let fidelity = 99.95 - luxDev * 0.15;
+        if (!qft) fidelity -= 12.0;
+        fidelity = Math.max(60.0, Math.min(99.99, fidelity));
+
+        fidelityDisplay.innerText = fidelity.toFixed(2) + " %";
+        fidelityDisplay.style.color = fidelity > 95 ? "#00ff66" : "#ff3366";
+
+        const isStable = fidelity > 90;
+        decoherenceDisplay.innerText = isStable ? "STABLE" : "DECOHERED";
+        decoherenceDisplay.style.color = isStable ? "#00f3ff" : "#ff3366";
+
+        // 動態生成 EMV 哈希字串
+        const hex = Math.floor((fidelity / 100) * 0xFFFFFF).toString(16).toUpperCase();
+        const modeStr = qft ? "QFT_SATURATED" : "RAW_NOISY";
+        const invStr = inv ? "INV_ON" : "INV_OFF";
+        emvOutput.innerText = `EMV-0x${hex}::MODE[${modeStr}]::PARITY[${invStr}]::PHI_LOGIT[${(fidelity/100).toFixed(4)}]::HASH[${md5Mock(time)}]`;
+    }
+
+    // 模擬動態 MD5 哈希
+    function md5Mock(seed) {
+        let str = "";
+        const chars = "abcdef0123456789";
+        for(let i=0; i<12; i++) {
+            str += chars.charAt(Math.floor(Math.abs(Math.sin(seed + i)) * chars.length));
+        }
+        return str;
+    }
+
+    function render() {
+        time += 0.05;
+        
+        const lux = parseFloat(luxInput.value);
+        const theta = parseFloat(thetaInput.value);
+        const inv = invToggle.checked;
+        const qft = qftToggle.checked;
+
+        luxVal.innerText = lux.toFixed(1);
+        thetaVal.innerText = theta + "°";
+
+        drawBlochSphere(blochCtx, theta, inv);
+        drawFFT(fftCtx, qft, lux);
+        drawCV2Tomography(cv2Ctx, lux, theta, inv);
+
+        updateMetrics();
+
+        animFrame = requestAnimationFrame(render);
+    }
+
+    // 初始化與事件監聽
+    function init() {
+        resizeCanvas(blochCtx.canvas);
+        resizeCanvas(fftCtx.canvas);
+        resizeCanvas(cv2Ctx.canvas);
+
+        window.addEventListener('resize', () => {
+            resizeCanvas(blochCtx.canvas);
+            resizeCanvas(fftCtx.canvas);
+            resizeCanvas(cv2Ctx.canvas);
+        });
+
+        btnPositioned.addEventListener('click', () => {
+            // 自動重置為 optimal 90-Lux positioned_set() 最佳條件
+            luxInput.value = 90;
+            thetaInput.value = 45;
+            invToggle.checked = true;
+            qftToggle.checked = true;
+            
+            // 閃爍效果
+            document.body.style.backgroundColor = '#132845';
+            setTimeout(() => {
+                document.body.style.backgroundColor = 'var(--bg-color)';
+            }, 150);
+        });
+
+        render();
+    }
+
+    window.onload = init;
+</script>
+
+</body>
+</html>
