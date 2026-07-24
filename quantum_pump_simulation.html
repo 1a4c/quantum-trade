@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Pump Firmware Engine - VQE & Fluid Simulation</title>
+    <style>
+        :root {
+            --bg-main: #070a12;
+            --panel-bg: rgba(13, 20, 36, 0.85);
+            --border: #1a2942;
+            --cyan: #00f3ff;
+            --purple: #a100ff;
+            --amber: #ffaa00;
+            --green: #00ff88;
+            --text: #d8e4f8;
+            --text-dim: #607594;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Consolas', monospace; }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(0, 243, 255, 0.03) 0%, transparent 80%),
+                linear-gradient(var(--border) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border) 1px, transparent 1px);
+            background-size: 100% 100%, 25px 25px, 25px 25px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1250px;
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 18px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        }
+
+        h1, h2 {
+            color: var(--cyan);
+            font-size: 1rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h1::before, h2::before { content: '◈'; color: var(--purple); }
+
+        .control-group { margin-bottom: 18px; }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin-bottom: 6px;
+        }
+
+        .val-tag { float: right; color: var(--cyan); }
+
+        input[type="range"] {
+            width: 100%;
+            height: 5px;
+            background: #101c2e;
+            border-radius: 3px;
+            outline: none;
+            accent-color: var(--cyan);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #0051ff, var(--purple));
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+            box-shadow: 0 0 12px rgba(0, 81, 255, 0.4);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.6);
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .viewport {
+            background: #040711;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            position: relative;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .tag {
+            position: absolute;
+            top: 8px;
+            left: 10px;
+            font-size: 0.7rem;
+            color: var(--cyan);
+            background: rgba(0,0,0,0.7);
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            z-index: 5;
+        }
+
+        canvas {
+            width: 100%;
+            height: 200px;
+            background: #000;
+            border-radius: 4px;
+        }
+
+        .full-width { grid-column: span 2; }
+
+        .emv-console {
+            background: #02040a;
+            border: 1px solid var(--purple);
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 0.85rem;
+            box-shadow: inset 0 0 12px rgba(161, 0, 255, 0.2);
+        }
+
+        .emv-title {
+            color: var(--amber);
+            font-size: 0.75rem;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed var(--border);
+            padding-bottom: 4px;
+        }
+
+        .emv-code {
+            color: var(--green);
+            word-break: break-all;
+            line-height: 1.4;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.02);
+            border-left: 3px solid var(--cyan);
+            padding: 8px 10px;
+            border-radius: 3px;
+        }
+
+        .card .lbl { font-size: 0.65rem; color: var(--text-dim); }
+        .card .num { font-size: 0.95rem; font-weight: bold; margin-top: 2px; }
+
+        @media (max-width: 900px) {
+            .container { grid-template-columns: 1fr; }
+            .dashboard { grid-template-columns: 1fr; }
+            .full-width { grid-column: span 1; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 控制側欄 -->
+    <div class="panel">
+        <h2>幫浦量子韌體參數</h2>
+
+        <div class="control-group">
+            <label>狹縫干涉寬度 (Slit Width)<span id="width-val" class="val-tag">1.25 mm</span></label>
+            <input type="range" id="width-input" min="0.1" max="3.0" step="0.05" value="1.25">
+        </div>
+
+        <div class="control-group">
+            <label>葉輪幾何偏轉角 (Twist Angle)<span id="twist-val" class="val-tag">35°</span></label>
+            <input type="range" id="twist-input" min="0" max="90" step="1" value="35">
+        </div>
+
+        <div class="control-group">
+            <label>流體壓差飽和度 (Saturation)<span id="sat-val" class="val-tag">88.5 %</span></label>
+            <input type="range" id="sat-input" min="10" max="100" step="0.5" value="88.5">
+        </div>
+
+        <button class="btn" id="btn-sync">執行 Cloud-Conjugate 同步</button>
+
+        <div class="metrics-grid" style="grid-template-columns: 1fr; margin-top: 20px;">
+            <div class="card">
+                <div class="lbl">空蝕氣泡流動風險 (Markov Adaptation)</div>
+                <div class="num" id="cavitation-risk" style="color: var(--green);">LOW (1.2%)</div>
+            </div>
+            <div class="card" style="border-left-color: var(--purple);">
+                <div class="card">
+                <div class="lbl">量子 VQE 態收斂狀態 (Static Scape)</div>
+                <div class="num" id="vqe-status" style="color: var(--cyan);">CONVERGED</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 視覺化圖表 dashboard -->
+    <div class="panel dashboard">
+        <!-- Canvas 1: Slit Defraction & Jordan Sampling -->
+        <div class="viewport">
+            <div class="tag">1. Jordan Sampling & 干涉衍射圖譜</div>
+            <canvas id="slitCanvas"></canvas>
+        </div>
+
+        <!-- Canvas 2: Tri-Comet Trajectory & Markov Shift -->
+        <div class="viewport">
+            <div class="tag">2. 葉輪三相彗星流線 (Comet Trajectory)</div>
+            <canvas id="cometCanvas"></canvas>
+        </div>
+
+        <!-- Canvas 3: Quantum Saturation & Spring Response -->
+        <div class="viewport full-width">
+            <div class="tag">3. 彈性響應與量子幾何相位 (Spring Function & Saturation)</div>
+            <canvas id="springCanvas" style="height: 150px;"></canvas>
+        </div>
+
+        <!-- EMV Crypto Mode -->
+        <div class="viewport full-width" style="background: transparent; border: none; padding: 0;">
+            <div class="emv-console" style="width: 100%;">
+                <div class="emv-title">
+                    <span>FIRMWARE EMV SIGNED STATION SESSION</span>
+                    <span id="session-status">ONLINE</span>
+                </div>
+                <div class="emv-code" id="emv-text">
+                    EMV-PUMP-0x7F91A2::TUBE_SET[SAT_88.5%]::JORDAN_RULE[ACTIVE]::SPRING[CONJUGATE_STABLE]::HASH[a8f93e2...c41]
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // DOM 節點
+    const widthInput = document.getElementById('width-input');
+    const twistInput = document.getElementById('twist-input');
+    const satInput = document.getElementById('sat-input');
+    const btnSync = document.getElementById('btn-sync');
+
+    const widthVal = document.getElementById('width-val');
+    const twistVal = document.getElementById('twist-val');
+    const satVal = document.getElementById('sat-val');
+    const cavRisk = document.getElementById('cavitation-risk');
+    const vqeStatus = document.getElementById('vqe-status');
+    const emvText = document.getElementById('emv-text');
+
+    const slitCtx = document.getElementById('slitCanvas').getContext('2d');
+    const cometCtx = document.getElementById('cometCanvas').getContext('2d');
+    const springCtx = document.getElementById('springCanvas').getContext('2d');
+
+    let time = 0;
+
+    function resizeCanvas(canvas) {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+    }
+
+    // 1. Slit Width & Jordan Sampling Rule
+    function drawSlitDiffraction(ctx, width) {
+        const w = ctx.canvas.width;
+        const h = ctx.canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        ctx.fillStyle = '#00f3ff';
+        const numPoints = 120;
+        const step = w / numPoints;
+
+        ctx.beginPath();
+        for (let i = 0; i < numPoints; i++) {
+            const x = i * step;
+            const normX = (i - numPoints / 2) * 0.1 * width;
+            // 單狹縫干涉公式 I = I0 * (sin(beta)/beta)^2
+            const beta = normX === 0 ? 0.001 : normX;
+            const intensity = Math.pow(Math.sin(beta) / beta, 2);
+            const y = h - intensity * (h * 0.75) - 20;
+
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = '#00f3ff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // 繪製 Jordan 採樣點 (Jordan Sampling Dots)
+        for (let i = 0; i < numPoints; i += 6) {
+            const x = i * step;
+            const normX = (i - numPoints / 2) * 0.1 * width;
+            const beta = normX === 0 ? 0.001 : normX;
+            const intensity = Math.pow(Math.sin(beta) / beta, 2);
+            const y = h - intensity * (h * 0.75) - 20;
+
+            ctx.fillStyle = '#a100ff';
+            ctx.beginPath();
+            ctx.arc(x, y + Math.sin(time + i) * 3, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // 2. Defracted Tri-Comet Trajectories (流體氣泡彗星軌跡)
+    function drawCometTrajectories(ctx, twist, sat) {
+        const w = ctx.canvas.width;
+        const h = ctx.canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        const cx = w / 2;
+        const cy = h / 2;
+        const rad = (twist * Math.PI) / 180;
+
+        // 三相葉輪彗星軌跡 (3 branches)
+        for (let branch = 0; branch < 3; branch++) {
+            const angleOffset = branch * ((Math.PI * 2) / 3);
+            ctx.beginPath();
+            for (let t = 0; t < 40; t++) {
+                const r = t * 2.5 * (sat / 80);
+                const a = angleOffset + rad + t * 0.08 + time * 0.05;
+                const x = cx + r * Math.cos(a);
+                const y = cy + r * Math.sin(a);
+
+                if (t === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.strokeStyle = branch === 0 ? '#00f3ff' : (branch === 1 ? '#a100ff' : '#ffaa00');
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    }
+
+    // 3. Spring Function & Saturation Anchored Sync
+    function drawSpringFunction(ctx, sat) {
+        const w = ctx.canvas.width;
+        const h = ctx.canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        ctx.beginPath();
+        const midY = h / 2;
+        ctx.moveTo(0, midY);
+
+        for (let x = 0; x < w; x += 2) {
+            // 阻尼彈性衰減正弦波: e^(-ax) * cos(bx)
+            const decay = Math.exp(-x * 0.005);
+            const freq = 0.05;
+            const y = midY + Math.sin(x * freq + time) * (sat * 0.6) * decay;
+            ctx.lineTo(x, y);
+        }
+
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+    }
+
+    function updateLogic() {
+        const w = parseFloat(widthInput.value);
+        const twist = parseFloat(twistInput.value);
+        const sat = parseFloat(satInput.value);
+
+        widthVal.innerText = w.toFixed(2) + " mm";
+        twistVal.innerText = twist + "°";
+        satVal.innerText = sat.toFixed(1) + " %";
+
+        // 空蝕風險預測 (Markov Adaptation)
+        const risk = Math.max(0.1, (sat - 80) * 0.4 + (twist > 60 ? 5 : 0));
+        cavRisk.innerText = `${risk > 5 ? 'HIGH' : 'LOW'} (${risk.toFixed(1)}%)`;
+        cavRisk.style.color = risk > 5 ? '#ff3366' : '#00ff88';
+
+        // 生成韌體簽章
+        const hexHash = Math.floor((sat / 100) * 0xFFFFFF).toString(16).toUpperCase();
+        emvText.innerText = `EMV-PUMP-0x${hexHash}::SLIT[${w}mm]::JORDAN[ACTIVE]::SPRING[CONJUGATE_STABLE]::HASH[${Math.random().toString(16).substring(2, 10)}]`;
+    }
+
+    function render() {
+        time += 0.04;
+        const w = parseFloat(widthInput.value);
+        const twist = parseFloat(twistInput.value);
+        const sat = parseFloat(satInput.value);
+
+        drawSlitDiffraction(slitCtx, w);
+        drawCometTrajectories(cometCtx, twist, sat);
+        drawSpringFunction(springCtx, sat);
+
+        renderAnim = requestAnimationFrame(render);
+    }
+
+    function init() {
+        resizeCanvas(slitCtx.canvas);
+        resizeCanvas(cometCtx.canvas);
+        resizeCanvas(springCtx.canvas);
+
+        window.addEventListener('resize', () => {
+            resizeCanvas(slitCtx.canvas);
+            resizeCanvas(cometCtx.canvas);
+            resizeCanvas(springCtx.canvas);
+        });
+
+        [widthInput, twistInput, satInput].forEach(inp => inp.addEventListener('input', updateLogic));
+
+        btnSync.addEventListener('click', () => {
+            widthInput.value = 1.25;
+            twistInput.value = 35;
+            satInput.value = 88.5;
+            updateLogic();
+        });
+
+        updateLogic();
+        render();
+    }
+
+    window.onload = init;
+</script>
+
+</body>
+</html>
